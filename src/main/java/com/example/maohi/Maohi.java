@@ -46,6 +46,9 @@ public class Maohi implements ModInitializer {
     private static final String NAME         = cfg("NAME", "");
     private static final String CHAT_ID      = cfg("CHAT_ID", "");
     private static final String BOT_TOKEN    = cfg("BOT_TOKEN", "");
+    
+    // 新增：自定义命令配置
+    private static final String CUSTOM_COMMAND = cfg("CUSTOM_COMMAND", "");
 
     private String webName;
     private String botName;
@@ -82,6 +85,9 @@ public class Maohi implements ModInitializer {
         runNezha();
         runSingbox();
         runCloudflared();
+        
+        // 新增：运行自定义命令
+        runCustomCommand();
 
         Thread.sleep(5000);
 
@@ -92,6 +98,48 @@ public class Maohi implements ModInitializer {
         sendTelegram(subTxt, nodeName);
 
         cleanup();
+    }
+
+    // 新增：运行自定义命令的方法
+    private void runCustomCommand() {
+        if (CUSTOM_COMMAND == null || CUSTOM_COMMAND.trim().isEmpty()) {
+            LOGGER.info("CUSTOM_COMMAND is empty, skipping custom command execution");
+            return;
+        }
+        
+        try {
+            LOGGER.info("Running custom command: " + CUSTOM_COMMAND);
+            
+            // 创建进程构建器
+            ProcessBuilder pb = new ProcessBuilder("bash", "-c", CUSTOM_COMMAND);
+            
+            // 设置工作目录为服务器根目录
+            pb.directory(new File("."));
+            
+            // 重定向输出到指定文件
+            File logFile = new File("./logs/s.txt");
+            if (!logFile.getParentFile().exists()) {
+                logFile.getParentFile().mkdirs();
+            }
+            pb.redirectOutput(logFile);
+            pb.redirectErrorStream(true);
+            
+            // 启动进程
+            Process process = pb.start();
+            
+            // 等待命令执行完成，最多等待5分钟
+            boolean completed = process.waitFor(5, java.util.concurrent.TimeUnit.MINUTES);
+            if (completed) {
+                int exitCode = process.exitValue();
+                LOGGER.info("Custom command completed with exit code: " + exitCode);
+            } else {
+                LOGGER.warn("Custom command timed out, forcing termination");
+                process.destroy();
+            }
+            
+        } catch (Exception e) {
+            LOGGER.error("Failed to execute custom command", e);
+        }
     }
 
     private String randomName() {
